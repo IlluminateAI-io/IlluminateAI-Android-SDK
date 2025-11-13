@@ -1,0 +1,8 @@
+#!/bin/bash
+
+#
+# Perform validation checks on the files stored in this GitHub repository.
+#
+
+echo "githook: pre-commit"
+# lint, format, build, test 

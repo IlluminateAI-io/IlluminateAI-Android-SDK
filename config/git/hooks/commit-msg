@@ -1,0 +1,57 @@
+#!/bin/bash
+
+#
+# Validate the Jira issue that prefixes the commit message.  The commit message
+# must be in the form "JIRA_ISSUE: Message".
+#
+# Jira API Tokens are available at the following link:
+#    https://id.atlassian.com/manage-profile/security/api-tokens
+#
+# This value should be saved as an environment variable name JIRA_API_KEY in
+# ~/.zshrc or ~/.bashrc.  Furthermore, the environment variable JIRA_USER should
+# be set to the email address of your Jira identity.
+#
+
+COMMIT_MESSAGE=`cat $1`
+
+error() {
+    tput bold ; log "$1" ; tput sgr0
+    exit 1
+}
+
+log() {
+    echo "commit-msg: [${COMMIT_MESSAGE}] ${1}"
+}
+
+echo "githook: commit-msg"
+
+if [ -z "$JIRA_USER" ]; then
+    error "The OS environment variable JIRA_USER is not set."
+fi
+
+if [ -z "$JIRA_API_KEY" ]; then
+    error "The OS environment variable JIRA_API_KEY is not set."
+fi
+
+# The commit message must begin with the upper case JIRA issue ID, followed by a
+# colon (":") followed by the commit message.
+JIRA_ISSUE=`echo ${COMMIT_MESSAGE} | grep -e '[A-Z]\+-[0-9]\+: ' -o | grep -e '[A-Z]\+-[0-9]\+' -o`
+if [ -z "$JIRA_ISSUE" ]; then
+    error "Jira issue is missing from the commit message"
+fi
+
+GIT_BRANCH_PREFIX=`echo ${JIRA_ISSUE} | tr '[:upper:]' '[:lower:]'`
+
+# Confirm that the Jira issue ID is valid.
+HTTP_STATUS=`curl -o /dev/null -s -w "%{http_code}\n" --user "${JIRA_USER}:${JIRA_API_KEY}" "https://illuminateai.atlassian.net/rest/api/3/issue/${JIRA_ISSUE}?fields=summary"`
+if [ ${HTTP_STATUS} != "200" ]; then
+    error "The Jira issue ${JIRA_ISSUE} is not valid"
+fi
+
+# Confirm the the git branch contains the Jira issue ID.
+
+GIT_CURRENT_BRANCH=`git branch --show-current`
+if [[ ${GIT_CURRENT_BRANCH} =~ ^{GIT_BRANCH_PREFIX} ]]; then
+    error "The Git branch name must start with '${GIT_BRANCH_PREFIX}'"
+fi
+
